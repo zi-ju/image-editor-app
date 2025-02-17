@@ -1,7 +1,8 @@
-from PySide6.QtWidgets import QFileDialog, QLabel, QMainWindow, QPushButton
-from PySide6.QtGui import QPixmap, QImage
+from PySide6.QtWidgets import (QMainWindow, QLabel, QPushButton, QFileDialog,
+                               QWidget, QVBoxLayout, QHBoxLayout, QSlider)
 from PySide6.QtCore import Qt
 from PIL import Image
+from widgets.display_image import display_image, calculate_initial_scale_factor
 
 
 class MainWindow(QMainWindow):
@@ -10,60 +11,65 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Image Editor")
         self.setGeometry(100, 100, 800, 600)
 
-        # Initialize image path and loaded image object
+        # Create central widget and layout
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        layout = QVBoxLayout(central_widget)
+
+        # Initialize image
         self.image_path = None
         self.image = None
 
-        # QLabel to display the image
-        self.image_label = QLabel(self)
-        self.image_label.setGeometry(50, 50, 700, 500)
+        # Create image label
+        self.image_label = QLabel()
+        self.image_label.setFixedSize(1000, 500)
+        self.image_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.image_label)
 
-        # Button to load an image
-        self.load_button = QPushButton("Load Image", self)
-        self.load_button.setGeometry(50, 550, 100, 30)
+        # Initialize scale factor and scale label
+        self.scale_factor = 1.0
+        self.scale_label = QLabel()
+        layout.addWidget(self.scale_label)
+
+        # Slider to control the scale factor
+        self.scale_slider = QSlider(Qt.Horizontal)
+        self.scale_slider.setRange(1, 200)  # scale from 1% to 200%
+        self.scale_slider.setValue(100)  # default value is 100%
+        self.scale_slider.valueChanged.connect(self.update_scale)
+        layout.addWidget(self.scale_slider)
+
+        # Image size label
+        self.size_label = QLabel()
+        layout.addWidget(self.size_label)
+
+        # Create button layout
+        button_layout = QHBoxLayout()
+
+        # Load image button
+        self.load_button = QPushButton("Load Image")
         self.load_button.clicked.connect(self.load_image)
+        button_layout.addWidget(self.load_button)
 
-        # Button to crop the image
-        self.crop_button = QPushButton("Crop Image", self)
-        self.crop_button.setGeometry(200, 550, 100, 30)
-        self.crop_button.clicked.connect(self.crop_image)
+        layout.addLayout(button_layout)
 
     def load_image(self):
-        # Load image from file
-        file_path, _ = QFileDialog.getOpenFileName(self, "Open Image File", "", "Images (*.png *.xpm *.jpg *.jpeg)")
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Image File",
+            "",
+            "Images (*.png *.xpm *.jpg *.jpeg)"
+        )
         if file_path:
-            self.image_path = file_path
             self.image = Image.open(file_path)
-            self.display_image(self.image)
+            self.scale_factor = calculate_initial_scale_factor(self.image, self.image_label)
+            display_image(self.image, self.image_label,
+                          self.size_label, self.scale_label,
+                          self.scale_factor)
 
-    def display_image(self, image):
-        # Convert PIL Image to QImage
-        image = image.convert("RGB")
-        width, height = image.size
-
-        # Convert to QImage
-        qimg = QImage(image.tobytes(), width, height, width * 3, QImage.Format_RGB888)
-
-        # Create QPixmap
-        pixmap = QPixmap.fromImage(qimg)
-
-        # Get label size
-        label_width = self.image_label.width()
-        label_height = self.image_label.height()
-
-        # Scale image only if it's larger than the label, maintaining aspect ratio
-        if width > label_width or height > label_height:
-            scaled_pixmap = pixmap.scaled(label_width, label_height,
-                                          Qt.KeepAspectRatio,
-                                          Qt.SmoothTransformation)
-        else:
-            # If image is smaller than label, use original size
-            scaled_pixmap = pixmap
-
-        # Set the pixmap to the label
-        self.image_label.setPixmap(scaled_pixmap)
-        self.image_label.setAlignment(Qt.AlignCenter)
-
-    def crop_image(self):
-        pass
-
+    # Update the scale factor based on slider value
+    def update_scale(self):
+        self.scale_factor = self.scale_slider.value() / 100.0
+        if self.image:
+            display_image(self.image, self.image_label,
+                          self.size_label, self.scale_label,
+                          self.scale_factor)
